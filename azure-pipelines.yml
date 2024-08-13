@@ -1,28 +1,33 @@
-# Docker
-# Build and push an image to Azure Container Registry
-# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
-
-# Docker
-# Build and push an image to Azure Container Registry (ACR)
-# Trigger on the 'main' branch
-
 trigger:
+- master
 - main
+
+resources:
+- repo: self
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
+  dockerRegistryServiceConnection: '2546a734-0d1a-464b-b071-ba92c486114c'
+  imageRepository: 'docker'
+  containerRegistry: 'azuprac01.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/backend/Dockerfile'
   imageName: 'my-webapp'
   tag: '$(Build.BuildId)'
+  vmImageName: 'ubuntu-latest'
   dockerRegistry: 'youracr.azurecr.io'
   dockerUsername: 'rosh04'
   dockerPassword: 'Roshini@0409'
 
 stages:
 - stage: Build
+  displayName: Build and push stage
   jobs:
   - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
     steps:
     - task: UsePythonVersion@0
       inputs:
@@ -34,7 +39,7 @@ stages:
         docker build -t $(imageName)-backend:$(tag) -f backend/Dockerfile ./backend
         docker build -t $(imageName)-db:$(tag) -f db/Dockerfile ./db
       displayName: 'Build Docker Images'
-
+      
     - script: |
         echo $(dockerPassword) | docker login $(dockerRegistry) --username $(dockerUsername) --password-stdin
       displayName: 'Login to Azure Container Registry'

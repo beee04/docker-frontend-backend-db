@@ -1,0 +1,99 @@
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  dockerRegistryServiceConnection: 'docker' 
+  frontendImage: 'rosh04/frontend'
+  backendImage: 'rosh04/backend'
+  imageTag: '$(Build.BuildId)'
+
+jobs:
+- job: Build
+  displayName: 'Build and Push Docker Images'
+  steps:
+    # Build Frontend Image
+    - task: Docker@2
+      displayName: 'Build Frontend Docker Image'
+      inputs:
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: $(frontendImage)
+        command: buildAndPush
+        Dockerfile: 'frontend/Dockerfile'
+        tags: |
+          latest
+          $(imageTag)
+
+    # Build Backend Image
+    - task: Docker@2
+      displayName: 'Build Backend Docker Image'
+      inputs:
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: $(backendImage)
+        command: buildAndPush
+        Dockerfile: 'backend/Dockerfile'
+        tags: |
+          latest
+          $(imageTag)
+
+- job: Deploy
+  dependsOn: Build
+  displayName: 'Deploy to Kubernetes on VM'
+  steps:
+    - task: SSH@0
+      displayName: 'SSH into VM and Deploy'
+      inputs:
+        sshEndpoint: 'ssh'
+        runOptions: inline
+        inline: |
+          # Pull images from DockerHub or ACR
+          sudo docker pull $(frontendImage):$(imageTag)
+          sudo docker pull $(backendImage):$(imageTag)
+
+          # Deploy Frontend
+          kubectl apply -f - <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: frontend-deployment
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: frontend
+            template:
+              metadata:
+                labels:
+                  app: frontend
+              spec:
+                containers:
+                - name: frontend
+                  image: $(frontendImage):$(imageTag)
+                  ports:
+                  - containerPort: 3000
+          EOF
+
+          # Deploy Backend
+          kubectl apply -f - <<EOF
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: backend-deployment
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: backend
+            template:
+              metadata:
+                labels:
+                  app: backend
+              spec:
+                containers:
+                - name: backend
+                  image: $(backendImage):$(imageTag)
+                  ports:
+                  - containerPort: 3001
+          EOF

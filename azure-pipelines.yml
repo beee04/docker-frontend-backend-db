@@ -1,96 +1,77 @@
 trigger:
-- master
+  branches:
+    include:
+      - main
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
-  dockerRegistryServiceConnection: 'docker' 
-  frontendImage: 'rosh04/frontend'
-  backendImage: 'rosh04/backend'
-  imageTag: '$(Build.BuildId)'
+  frontendImageName: 'rosh04/frontend'
+  backendImageName: 'rosh04/backend'
+  dbImageName: 'rosh04/mongodb'
 
-jobs:
-- job: Build
-  displayName: 'Build and Push Docker Images'
-  steps:
-    - task: Docker@2
-      displayName: 'Build Frontend Docker Image'
-      inputs:
-        containerRegistry: $(dockerRegistryServiceConnection)
-        repository: $(frontendImage)
-        command: buildAndPush
-        Dockerfile: 'frontend/Dockerfile'
-        tags: |
-          latest
-          $(imageTag)
+steps:
+- task: Checkout@2
+  displayName: 'Checkout Code'
+
+- task: DockerInstaller@0
+  displayName: 'Install Docker'
+
+- task: Docker@2
+  displayName: 'Build Frontend Docker Image'
+  inputs:
+    containerRegistry: 'docker'
+    repository: '$(frontendImageName)'
+    command: 'build'
+    Dockerfile: 'frontend/Dockerfile'
+    buildContext: 'frontend'
+    tags: 'latest'
+  
+
+- task: Docker@2
+  displayName: 'Build Backend Docker Image'
+  inputs:
+    containerRegistry: 'docker'
+    repository: '$(backendImageName)'
+    command: 'build'
+    Dockerfile: 'backend/Dockerfile'
+    buildContext: 'backend'
+    tags: 'latest'
 
 
-    - task: Docker@2
-      displayName: 'Build Backend Docker Image'
-      inputs:
-        containerRegistry: $(dockerRegistryServiceConnection)
-        repository: $(backendImage)
-        command: buildAndPush
-        Dockerfile: 'backend/Dockerfile'
-        tags: |
-          latest
-          $(imageTag)
+- task: Docker@2
+  displayName: 'Build MongoDB Docker Image'
+  inputs:
+    containerRegistry: 'docker'
+    repository: '$(dbImageName)'
+    command: 'build'
+    Dockerfile: 'mongo/Dockerfile'
+    buildContext: 'db'
+    tags: 'latest'
 
-- job: Deploy
-  dependsOn: Build
-  displayName: 'Deploy to Kubernetes on VM'
-  steps:
-    - task: SSH@0
-      displayName: 'SSH into VM and Deploy'
-      inputs:
-        sshEndpoint: 'ssh'
-        runOptions: 'inline'
-        inline: |
-          sudo docker pull $(frontendImage):$(imageTag)
-          sudo docker pull $(backendImage):$(imageTag)
-          
-          kubectl apply -f - <<EOF
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: frontend-deployment
-          spec:
-            replicas: 2
-            selector:
-              matchLabels:
-                app: frontend
-            template:
-              metadata:
-                labels:
-                  app: frontend
-              spec:
-                containers:
-                - name: frontend
-                  image: $(frontendImage):$(imageTag)
-                  ports:
-                  - containerPort: 3000
-          EOF
-          
-          kubectl apply -f - <<EOF
-          apiVersion: apps/v1
-          kind: Deployment
-          metadata:
-            name: backend-deployment
-          spec:
-            replicas: 2
-            selector:
-              matchLabels:
-                app: backend
-            template:
-              metadata:
-                labels:
-                  app: backend
-              spec:
-                containers:
-                - name: backend
-                  image: $(backendImage):$(imageTag)
-                  ports:
-                  - containerPort: 3001
-          EOF
-        readyTimeout: '20000'
+
+- task: Docker@2
+  displayName: 'Push Frontend Docker Image'
+  inputs:
+    containerRegistry: 'docker'
+    repository: '$(frontendImageName)'
+    command: 'push'
+    tags: 'latest'
+
+- task: Docker@2
+  displayName: 'Push Backend Docker Image'
+  inputs:
+    containerRegistry: 'docker'
+    repository: '$(backendImageName)'
+    command: 'push'
+    tags: 'latest'
+
+- task: Docker@2
+  displayName: 'Push MongoDB Docker Image'
+  inputs:
+    containerRegistry: 'Docker registry'
+    repository: '$(dbImageName)'
+    command: 'push'
+    tags: |
+      latest

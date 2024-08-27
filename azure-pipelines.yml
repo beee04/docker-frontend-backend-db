@@ -9,69 +9,65 @@ pool:
 variables:
   frontendImageName: 'rosh04/frontend'
   backendImageName: 'rosh04/backend'
-  dbImageName: 'rosh04/mongodb'
+  dbImageName: 'mongo:latest'
 
-steps:
-- task: Checkout@2
-  displayName: 'Checkout Code'
+jobs:
+- job: Build_Frontend
+  displayName: 'Build and Push Frontend Image'
+  pool:
+    vmImage: 'ubuntu-latest'
+  steps:
+  - checkout: self
+    displayName: 'Checkout Code'
 
-- task: DockerInstaller@0
-  displayName: 'Install Docker'
+  - task: DockerInstaller@0
+    displayName: 'Install Docker'
 
-- task: Docker@2
-  displayName: 'Build Frontend Docker Image'
-  inputs:
-    containerRegistry: 'docker'
-    repository: '$(frontendImageName)'
-    command: 'build'
-    Dockerfile: 'frontend/Dockerfile'
-    buildContext: 'frontend'
-    tags: 'latest'
-  
+  - task: Docker@2
+    displayName: 'Build Frontend Docker Image'
+    inputs:
+      containerRegistry: 'docker'
+      repository: '$(frontendImageName)'
+      command: 'build'
+      Dockerfile: 'frontend/Dockerfile'
+      buildContext: 'frontend'
+      tags: 'latest'
 
-- task: Docker@2
-  displayName: 'Build Backend Docker Image'
-  inputs:
-    containerRegistry: 'docker'
-    repository: '$(backendImageName)'
-    command: 'build'
-    Dockerfile: 'backend/Dockerfile'
-    buildContext: 'backend'
-    tags: 'latest'
+  - task: Docker@2
+    displayName: 'Push Frontend Docker Image'
+    inputs:
+      containerRegistry: 'docker'
+      repository: '$(frontendImageName)'
+      command: 'push'
+      tags: 'latest'
+
+- job: Build_Backend
+  displayName: 'Build and Push Backend Image'
+  pool:
+    vmImage: 'ubuntu-latest'
+  steps:
+  - checkout: self
+    displayName: 'Checkout Code'
+
+  - task: DockerInstaller@0
+    displayName: 'Install Docker'
+
+  - task: Docker@2
+    displayName: 'Build Backend Docker Image'
+    inputs:
+      containerRegistry: 'docker'
+      repository: '$(backendImageName)'
+      command: 'build'
+      Dockerfile: 'backend/Dockerfile'
+      buildContext: 'backend'
+      tags: 'latest'
+
+  - task: Docker@2
+    displayName: 'Push Backend Docker Image'
+    inputs:
+      containerRegistry: 'docker'
+      repository: '$(backendImageName)'
+      command: 'push'
+      tags: 'latest'
 
 
-- task: Docker@2
-  displayName: 'Build MongoDB Docker Image'
-  inputs:
-    containerRegistry: 'docker'
-    repository: '$(dbImageName)'
-    command: 'build'
-    Dockerfile: 'mongo/Dockerfile'
-    buildContext: 'db'
-    tags: 'latest'
-
-
-- task: Docker@2
-  displayName: 'Push Frontend Docker Image'
-  inputs:
-    containerRegistry: 'docker'
-    repository: '$(frontendImageName)'
-    command: 'push'
-    tags: 'latest'
-
-- task: Docker@2
-  displayName: 'Push Backend Docker Image'
-  inputs:
-    containerRegistry: 'docker'
-    repository: '$(backendImageName)'
-    command: 'push'
-    tags: 'latest'
-
-- task: Docker@2
-  displayName: 'Push MongoDB Docker Image'
-  inputs:
-    containerRegistry: 'Docker registry'
-    repository: '$(dbImageName)'
-    command: 'push'
-    tags: |
-      latest
